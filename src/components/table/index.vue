@@ -1,6 +1,12 @@
 <script>
 export default {
   name: 'BdTable',
+  props: {
+    dataList: {
+      type: Array,
+      default: () => ([]),
+    },
+  },
   data() {
     return {
       isTable: true,
@@ -8,23 +14,24 @@ export default {
     };
   },
   mounted() {
-    console.log(this.tableHeader);
+    // console.log(this.tableHeader);
   },
   methods: {
   },
   computed: {
-    tableHeader() {
-      const columnList = this.childrenColumns;
+    tableColumns() {
+      const { childrenColumns } = this;
+      const columnList = [];
       // 获取表头的深度 表头拍平
       let deep = 1;
-      const allColumn = [...columnList];
+      const allColumn = [...childrenColumns];
       const getDeep = (list = []) => {
         let has = false;
         const curDeep = deep;
         list.forEach((itemTmp) => {
           const item = itemTmp;
           item.deep = curDeep;
-          item.colSpan = item.childrenColumns.length || 1;
+          let colSpan = 0;
           if (item.childrenColumns.length) {
             allColumn.push(...item.childrenColumns);
             if (!has) {
@@ -32,10 +39,17 @@ export default {
               deep += 1;
             }
             getDeep(item.childrenColumns);
+            item.childrenColumns.forEach((cItem) => {
+              colSpan += cItem.colSpan;
+            });
+          } else {
+            columnList.push(item);
+            colSpan = 1;
           }
+          item.colSpan = colSpan;
         });
       };
-      getDeep(columnList);
+      getDeep(childrenColumns);
       const titleList = [];
       for (let i = 0; i < deep; i += 1) {
         titleList.push([]);
@@ -43,27 +57,49 @@ export default {
       // 表头分组
       allColumn.forEach((itemTmp) => {
         const item = itemTmp;
-        item.rowSpan = deep - item.deep + 1;
+        if (!item.childrenColumns.length) {
+          item.rowSpan = deep - item.deep + 1;
+        } else {
+          item.rowSpan = 1;
+        }
         titleList[item.deep - 1].push(item);
       });
-      console.log(titleList);
-      return titleList;
+      return {
+        titleList,
+        columnList,
+      };
     },
+
   },
   render() {
     const tableRender = (
       <table class="table">
         <thead>
         {
-          this.tableHeader.map((item) => (
+          this.tableColumns.titleList.map((item) => (
               <tr>
                 {item.map((cItem) => (
-                  <th rowspan={cItem.rowSpan} colspan={cItem.colSpan}>{cItem.title}</th>
+                  <th
+                    rowspan={cItem.rowSpan}
+                    colspan={cItem.colSpan}>{cItem.renderHeader()}</th>
                 ))}
               </tr>
           ))
         }
         </thead>
+        <tbody>
+        {
+          this.dataList.map((item) => (
+              <tr>
+                {
+                  this.tableColumns.columnList.map((cItem) => (
+                    <td>{cItem.renderCell(item)}</td>
+                  ))
+                }
+              </tr>
+          ))
+        }
+        </tbody>
       </table>
     );
     return (
@@ -79,12 +115,15 @@ export default {
 <style lang="less" scoped>
 .bd-table {
   background-color: #fff;
+  overflow: auto;
   .table{
     border-collapse: collapse;
-    width: 100%;
+    min-width: 100%;
     th,td{
       border: 1px solid #e7e7e7;
       text-align: center;
+      white-space: nowrap;
+      padding: 8px;
     }
   }
   .hidden-column{
